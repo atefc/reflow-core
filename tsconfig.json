@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    /* Basic File Layout */
+    "outDir": "./dist",
+    "rootDir": "./src",
+
+    /* Module & Target Configuration (Fixes Import Issues) */
+    "target": "ES2022",                             // Use modern JS syntax
+    "module": "commonjs",                           // ESSENTIAL: Output using Node's native module system
+
+    /* Strictness and Interop */
+    "strict": true,                                 // Enable all strict checks
+    "esModuleInterop": true,                        // Allow smoother import/export compatibility
+    "skipLibCheck": true,                           // Skip checking third-party dependencies
+
+    /* Cleanliness and Readability */
+    "forceConsistentCasingInFileNames": true,       // Ensures consistency in file imports
+    "noImplicitAny": true                           // Strongly recommended: No implicit 'any' types
+  },
+  "include": ["src/**/*"]
+}

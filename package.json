@@ -1,0 +1,25 @@
+{
+  "name": "reflow-core",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/atefc/reflow-core.git",
+  "author": "Atef CHIKH <atef.chikh-ext@sixense-group.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/main.ts",
+    "ts-init": "tsc --init"
+  },
+  "type": "module",
+  "dependencies": {
+    "@types/lodash": "^4.17.20",
+    "@types/luxon": "^3.7.1",
+    "lodash": "^4.17.21",
+    "luxon": "^3.7.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
+  }
+}
