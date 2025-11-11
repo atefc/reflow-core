@@ -17,10 +17,7 @@ export class ReflowService {
     workCenters: IWorkCenter[],
     manufacturingOrders: IManufacturingOrder[]
   ): IReflowResult {
-    console.log("Reflowing work orders...");
-
     const sortedWorkOrders = sortWorkOrdersBasedOnDependencies(workOrders);
-    console.log("Sorted Work Orders:", sortedWorkOrders);
     const result: IReflowResult = {
       updatedWorkOrders: [],
       changes: [],
@@ -39,13 +36,10 @@ export class ReflowService {
     for (const [workCenterId, workersInCenter] of Object.entries(
       groupedWorkers
     )) {
-      console.log(
-        `Checking conflicts for Work Center ${workCenterId}:`,
-        workersInCenter
-      );
-
       const workCenter = workCenters.find((wc) => wc.docId === workCenterId);
-      if (!workCenter) continue;
+      if (!workCenter) {
+        throw new Error(`Work Center ${workCenterId} not found`);
+      }
 
       // Sort workers by start date
       const sortedWorkersInCenter = workersInCenter.sort(

@@ -9,20 +9,23 @@ import {
   scenarioMaintenance,
   scenarioCombined,
   scenarioDependencyBlockedByMaintenance,
-  scenarioOverlapMaintenanceSameWC
+  scenarioOverlapMaintenanceSameWC,
+  scenarioChainedDependencies
 } from "./data/data";
 
 const reflowService = new ReflowService();
 
 const scenarios = [
-//   { name: "Scenario 1 - Simple", workOrders: scenarioSimple },
-//   { name: "Scenario 2 - Conflict", workOrders: scenarioConflict },
-//   { name: "Scenario 3 - Parent-Child Same WC", workOrders: scenarioParentChildSameWC },
-//   { name: "Scenario 4 - Parent-Child Diff WC", workOrders: scenarioParentChildDiffWC },
-//   { name: "Scenario 5 - Maintenance", workOrders: scenarioMaintenance },
-//   { name: "Scenario 6 - Combined Complex", workOrders: scenarioCombined },
+  { name: "Scenario 1 - Simple", workOrders: scenarioSimple },
+  { name: "Scenario 2 - Conflict", workOrders: scenarioConflict },
+  { name: "Scenario 3 - Parent-Child Same WC", workOrders: scenarioParentChildSameWC },
+  { name: "Scenario 4 - Parent-Child Diff WC", workOrders: scenarioParentChildDiffWC },
+  { name: "Scenario 5 - Maintenance", workOrders: scenarioMaintenance },
+  { name: "Scenario 6 - Combined Complex", workOrders: scenarioCombined },
   { name: "Scenario 7 - Overlap with Maintenance", workOrders: scenarioOverlapMaintenanceSameWC },
-//  { name: "Scenario 8 - Dependency Blocked by Maintenance", workOrders: scenarioDependencyBlockedByMaintenance },
+  { name: "Scenario 8 - Dependency Blocked by Maintenance", workOrders: scenarioDependencyBlockedByMaintenance },
+  // @update
+  { name: "Scenario 9 - Multi-step dependency chain across centers", workOrders: scenarioChainedDependencies },
 ];
 
 scenarios.forEach(({ name, workOrders }) => {

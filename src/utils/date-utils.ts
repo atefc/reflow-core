@@ -32,16 +32,12 @@ export const calculateEndDateWithShifts = (
 
     if (!nextShift) {
       // No shift left today, so move to next day and retry
-      console.log('No shift found for date', current.toUTC(), current.weekday, remaining, ', moving to next day');
+      // console.log('No shift found for date', current.toUTC(), current.weekday, remaining, ', moving to next day');
       current = current.plus({ days: 1 }).startOf("day");
       continue;
     }
 
     const availableMinutes = diffInMinutes(nextShift.shiftStart, nextShift.shiftEnd);
-
-    if(nextShift) {
-        console.log('New shift:', nextShift,availableMinutes);
-    }
     
     if (remaining <= availableMinutes) {
       return nextShift.shiftStart.plus({ minutes: remaining });
