@@ -6,7 +6,8 @@ import {
   IWorkOrder,
 } from "./types";
 import _ from "lodash";
-import { calculateEndDateWithShifts } from "./constraint-checker";
+import { calculateEndDateWithShifts, diffInMinutes, toUTC } from "./../utils/date-utils";
+import { getOverlappingMaintenanceWindows, isInConflict } from "./constraint-checker";
 
 export class ReflowService {
   constructor() {}
@@ -52,7 +53,6 @@ export class ReflowService {
           new Date(a.data.startDate).getTime() -
           new Date(b.data.startDate).getTime()
       );
-      // Check for conflicts
       let lastEndDate: DateTime | null = null;
 
       for (const workOrder of sortedWorkersInCenter) {
@@ -62,9 +62,9 @@ export class ReflowService {
             continue;
         }
 
-        // Conflict check
-        if (lastEndDate && startDate < lastEndDate) {
-          startDate = lastEndDate;
+        // Check conflict
+        if (isInConflict(startDate, lastEndDate)) {
+          startDate = lastEndDate!;
         }
 
         // Calculate end date based on shifts
@@ -74,31 +74,27 @@ export class ReflowService {
           workCenter.data.shifts
         );
 
-        // --- Maintenance window check ---
+        // Check maintenance window
         if (
           workCenter.data.maintenanceWindows.length
         ) {
-          let adjusted = true;
+          let isRecalculateNeeded = true;
 
-          while (adjusted) {
-            adjusted = false;
-            const maintenanceWindows = workCenter.data.maintenanceWindows.filter(
-              (mw) =>
-                DateTime.fromISO(mw.endDate).toUTC() > startDate &&
-                DateTime.fromISO(mw.startDate).toUTC() < endDate
+          while (isRecalculateNeeded) {
+            isRecalculateNeeded = false;
+            const maintenanceWindows = getOverlappingMaintenanceWindows(
+              startDate,
+              endDate,
+              workCenter
             );
             for (const maintenanceWindow of maintenanceWindows) {
-              const maintenanceWindowStart = DateTime.fromISO(maintenanceWindow.startDate).toUTC();
-              const maintenanceWindowEnd = DateTime.fromISO(maintenanceWindow.endDate).toUTC();
+              const maintenanceWindowStart = toUTC(DateTime.fromISO(maintenanceWindow.startDate));
+              const maintenanceWindowEnd = toUTC(DateTime.fromISO(maintenanceWindow.endDate));
 
               // If work order overlaps maintenance window
               if (startDate < maintenanceWindowEnd && endDate > maintenanceWindowStart) {
                 // Available minutes before maintenance window
-                const minutesBeforeMW = maintenanceWindowStart.diff(
-                  startDate,
-                  "minutes"
-                ).minutes;
-
+                const minutesBeforeMW = diffInMinutes(startDate, maintenanceWindowStart);
                 // If there’s any work done before MW, reduce remaining minutes
                 let remainingMinutes =
                   workOrder.data.durationMinutes -
@@ -114,7 +110,7 @@ export class ReflowService {
                   workCenter.data.shifts
                 );
 
-                adjusted = true; // recheck against all maintenance windows
+                isRecalculateNeeded = true; // recheck against all maintenance windows
               }
             }
           }
@@ -131,8 +127,7 @@ export class ReflowService {
             oldEnd,
             newStart: startDate.toISO(),
             newEnd: endDate.toISO(),
-            delayMinutes: startDate.diff(DateTime.fromISO(oldStart).toUTC(), "minutes")
-              .minutes,
+            delayMinutes: diffInMinutes(toUTC(DateTime.fromISO(oldStart)), startDate),
           });
 
           const isoStartDate = startDate.toISO();
@@ -156,7 +151,7 @@ export class ReflowService {
     workOrders: IWorkOrder[]
   ): IWorkOrder[] {
     const visited = new Set<string>(); // permanently visited
-    const visiting = new Set<string>(); // currently visiting (for cycle detection)
+    const visitInProgress = new Set<string>(); // currently visiting (for cycle detection)
     const sorted: IWorkOrder[] = [];
 
     const workOrderMap = new Map<string, IWorkOrder>();
@@ -164,13 +159,13 @@ export class ReflowService {
 
     const visit = (order: IWorkOrder) => {
       if (visited.has(order.docId)) return; // already sorted
-      if (visiting.has(order.docId)) {
+      if (visitInProgress.has(order.docId)) {
         throw new Error(
           `Circular dependency detected at work order ${order.docId}`
         );
       }
 
-      visiting.add(order.docId);
+      visitInProgress.add(order.docId);
 
       // Visit all parents first
       for (const depId of order.data.dependsOnWorkOrderIds) {
@@ -178,7 +173,7 @@ export class ReflowService {
         if (dep) visit(dep);
       }
 
-      visiting.delete(order.docId);
+      visitInProgress.delete(order.docId);
       visited.add(order.docId);
       sorted.push(order);
     };

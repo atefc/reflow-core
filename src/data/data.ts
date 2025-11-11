@@ -398,3 +398,140 @@ export const scenarioDependencyBlockedByMaintenance: IWorkOrder[] = [
     },
   },
 ];
+
+
+// ----------------------
+// Scenario 9: Multi-step dependency chain across centers
+// ----------------------
+export const scenarioChainedDependencies: IWorkOrder[] = [
+  {
+    docId: "WO9-1",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-009-1",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC1",
+      startDate: "2025-11-13T08:00:00Z",
+      endDate: "2025-11-13T10:00:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: [],
+    },
+  },
+  {
+    docId: "WO9-2",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-009-2",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC2",
+      startDate: "2025-11-13T10:00:00Z",
+      endDate: "2025-11-13T12:00:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: ["WO9-1"],
+    },
+  },
+  {
+    docId: "WO9-3",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-009-3",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC1",
+      startDate: "2025-11-13T12:30:00Z",
+      endDate: "2025-11-13T14:30:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: ["WO9-2"],
+    },
+  },
+];
+
+// ----------------------
+// Scenario 10: Work order extends beyond shift boundary
+// ----------------------
+export const scenarioShiftBoundary: IWorkOrder[] = [
+  {
+    docId: "WO10-1",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-010-1",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC1",
+      startDate: "2025-11-11T16:00:00Z", // shift ends 17:00
+      endDate: "2025-11-11T18:00:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: [],
+    },
+  },
+];
+
+// ----------------------
+// Scenario 11: Multiple WOs in same WC, no overlap
+// ----------------------
+export const scenarioParallelNonConflict: IWorkOrder[] = [
+  {
+    docId: "WO11-1",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-011-1",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC2",
+      startDate: "2025-11-11T07:00:00Z",
+      endDate: "2025-11-11T09:00:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: [],
+    },
+  },
+  {
+    docId: "WO11-2",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-011-2",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC2",
+      startDate: "2025-11-11T09:00:00Z",
+      endDate: "2025-11-11T11:00:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: [],
+    },
+  },
+];
+
+// ----------------------
+// Scenario 12: Circular dependency (invalid)
+// ----------------------
+export const scenarioCircularDependency: IWorkOrder[] = [
+  {
+    docId: "WO12-1",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-012-1",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC1",
+      startDate: "2025-11-14T08:00:00Z",
+      endDate: "2025-11-14T10:00:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: ["WO12-2"], // circular link
+    },
+  },
+  {
+    docId: "WO12-2",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-012-2",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC1",
+      startDate: "2025-11-14T10:00:00Z",
+      endDate: "2025-11-14T12:00:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: ["WO12-1"],
+    },
+  },
+];
