@@ -1,7 +1,6 @@
 import { DateTime } from "luxon";
-import { isInConflict, getOverlappingMaintenanceWindows } from "./constraint-checker";
-import { toUTC } from "../utils/date-utils"; // now using the real function
-import { IWorkCenter } from "./types";
+import { isInConflict, getOverlappingMaintenanceWindows, sortWorkOrdersBasedOnDependencies } from "./constraint-checker";
+import { IWorkCenter, IWorkOrder } from "./types";
 
 describe("constraint-checker utils", () => {
   // -------------------------------------------------------------------------
@@ -92,4 +91,79 @@ describe("constraint-checker utils", () => {
       );
     });
   });
+
+  describe("sortWorkOrdersBasedOnDependencies", () => {
+  it("should sort work orders based on dependencies", () => {
+    const workOrders: IWorkOrder[] = [
+      {
+        docId: "WO1",
+        docType: "workOrder",
+        data: {
+          workOrderNumber: "WO-001",
+          manufacturingOrderId: "MO1",
+          workCenterId: "WC1",
+          startDate: "2025-11-11T08:00:00Z",
+          endDate: "2025-11-11T10:00:00Z",
+          durationMinutes: 120,
+          isMaintenance: false,
+          dependsOnWorkOrderIds: [],
+        },
+      },
+      {
+        docId: "WO2",
+        docType: "workOrder",
+        data: {
+          workOrderNumber: "WO-002",
+          manufacturingOrderId: "MO1",
+          workCenterId: "WC1",
+          startDate: "2025-11-11T10:00:00Z",
+          endDate: "2025-11-11T12:00:00Z",
+          durationMinutes: 120,
+          isMaintenance: false,
+          dependsOnWorkOrderIds: ["WO1"],
+        },
+      },
+      {
+        docId: "WO3",
+        docType: "workOrder",
+        data: {
+          workOrderNumber: "WO-003",
+          manufacturingOrderId: "MO1",
+          workCenterId: "WC2",
+          startDate: "2025-11-11T12:00:00Z",
+          endDate: "2025-11-11T14:00:00Z",
+          durationMinutes: 120,
+          isMaintenance: false,
+          dependsOnWorkOrderIds: ["WO2"],
+        },
+      },
+    ];
+
+    const sorted = sortWorkOrdersBasedOnDependencies(workOrders);
+
+    expect(sorted.map((wo) => wo.docId)).toEqual(["WO1", "WO2", "WO3"]);
+  });
+
+  it("should keep independent work orders in original order if no dependencies", () => {
+    const workOrders: IWorkOrder[] = [
+      { docId: "WO1", docType: "workOrder", data: { workOrderNumber: "WO1", manufacturingOrderId: "MO1", workCenterId: "WC1", startDate: "", endDate: "", durationMinutes: 0, isMaintenance: false, dependsOnWorkOrderIds: [] } },
+      { docId: "WO2", docType: "workOrder", data: { workOrderNumber: "WO2", manufacturingOrderId: "MO1", workCenterId: "WC1", startDate: "", endDate: "", durationMinutes: 0, isMaintenance: false, dependsOnWorkOrderIds: [] } },
+    ];
+
+    const sorted = sortWorkOrdersBasedOnDependencies(workOrders);
+
+    expect(sorted.map((wo) => wo.docId)).toEqual(["WO1", "WO2"]);
+  });
+
+  it("should throw error if there is a circular dependency", () => {
+    const workOrders: IWorkOrder[] = [
+      { docId: "WO1", docType: "workOrder", data: { workOrderNumber: "WO1", manufacturingOrderId: "MO1", workCenterId: "WC1", startDate: "", endDate: "", durationMinutes: 0, isMaintenance: false, dependsOnWorkOrderIds: ["WO2"] } },
+      { docId: "WO2", docType: "workOrder", data: { workOrderNumber: "WO2", manufacturingOrderId: "MO1", workCenterId: "WC1", startDate: "", endDate: "", durationMinutes: 0, isMaintenance: false, dependsOnWorkOrderIds: ["WO1"] } },
+    ];
+
+    expect(() => sortWorkOrdersBasedOnDependencies(workOrders)).toThrow(
+      /Circular dependency detected/
+    );
+  });
+});
 });

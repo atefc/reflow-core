@@ -7,7 +7,7 @@ import {
 } from "./types";
 import _ from "lodash";
 import { calculateEndDateWithShifts, diffInMinutes, toUTC } from "./../utils/date-utils";
-import { getOverlappingMaintenanceWindows, isInConflict } from "./constraint-checker";
+import { getOverlappingMaintenanceWindows, isInConflict, sortWorkOrdersBasedOnDependencies } from "./constraint-checker";
 
 export class ReflowService {
   constructor() {}
@@ -19,7 +19,7 @@ export class ReflowService {
   ): IReflowResult {
     console.log("Reflowing work orders...");
 
-    const sortedWorkOrders = this.sortWorkOrdersBasedOnDependencies(workOrders);
+    const sortedWorkOrders = sortWorkOrdersBasedOnDependencies(workOrders);
     console.log("Sorted Work Orders:", sortedWorkOrders);
     const result: IReflowResult = {
       updatedWorkOrders: [],
@@ -145,43 +145,6 @@ export class ReflowService {
     result.updatedWorkOrders = sortedWorkOrders;
 
     return result;
-  }
-
-  private sortWorkOrdersBasedOnDependencies(
-    workOrders: IWorkOrder[]
-  ): IWorkOrder[] {
-    const visited = new Set<string>(); // permanently visited
-    const visitInProgress = new Set<string>(); // currently visiting (for cycle detection)
-    const sorted: IWorkOrder[] = [];
-
-    const workOrderMap = new Map<string, IWorkOrder>();
-    workOrders.forEach((w) => workOrderMap.set(w.docId, w));
-
-    const visit = (order: IWorkOrder) => {
-      if (visited.has(order.docId)) return; // already sorted
-      if (visitInProgress.has(order.docId)) {
-        throw new Error(
-          `Circular dependency detected at work order ${order.docId}`
-        );
-      }
-
-      visitInProgress.add(order.docId);
-
-      // Visit all parents first
-      for (const depId of order.data.dependsOnWorkOrderIds) {
-        const dep = workOrderMap.get(depId);
-        if (dep) visit(dep);
-      }
-
-      visitInProgress.delete(order.docId);
-      visited.add(order.docId);
-      sorted.push(order);
-    };
-
-    // Visit all work orders
-    workOrders.forEach((order) => visit(order));
-
-    return sorted;
   }
 
   private buildWorkOrderMap(workOrders: IWorkOrder[]): Map<string, IWorkOrder> {
