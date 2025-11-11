@@ -22,7 +22,7 @@ export function getOverlappingMaintenanceWindows(
 ) {
   return workCenter.data.maintenanceWindows.filter(
     (mw) =>
-      DateTime.fromISO(mw.endDate).toUTC() > startDate &&
-      DateTime.fromISO(mw.startDate).toUTC() < endDate
+      toUTC(DateTime.fromISO(mw.endDate)) > startDate &&
+      toUTC(DateTime.fromISO(mw.startDate)) < endDate
   );
 }
