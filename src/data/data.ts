@@ -356,6 +356,20 @@ export const scenarioOverlapMaintenanceSameWC: IWorkOrder[] = [
       dependsOnWorkOrderIds: [],
     },
   },
+  {
+    docId: "WO7-2",
+    docType: "workOrder",
+    data: {
+      workOrderNumber: "WO-007-2",
+      manufacturingOrderId: "MO1",
+      workCenterId: "WC1",
+      startDate: "2025-11-12T10:30:00Z", // overlaps with maintenance 10:00–11:00 and WO7-1
+      endDate: "2025-11-12T12:30:00Z",
+      durationMinutes: 120,
+      isMaintenance: false,
+      dependsOnWorkOrderIds: ["WO7-1"],
+    },
+  },
 ];
 
 // ----------------------

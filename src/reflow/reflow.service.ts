@@ -58,8 +58,8 @@ export class ReflowService {
       let lastEndDate: DateTime | null = null;
 
       // @upgrade
-      let workerDelays = 0;
       for (const workOrder of sortedWorkersInCenter) {
+        let workerDelays = 0;
         const originalStartDate = toUTC(DateTime.fromISO(workOrder.data.startDate));
         const originalEndDate = toUTC(DateTime.fromISO(workOrder.data.endDate));
 
@@ -192,7 +192,7 @@ export class ReflowService {
           if (isoEndDate) workOrder.data.endDate = isoEndDate;
         }
 
-                lastEndDate = endDate;
+        lastEndDate = endDate;
       }
     }
 
