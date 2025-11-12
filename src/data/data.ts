@@ -14,6 +14,10 @@ export const workCenters: IWorkCenter[] = [
         { dayOfWeek: 1, startHour: 8, endHour: 12 },
         { dayOfWeek: 1, startHour: 13, endHour: 17 },
         { dayOfWeek: 2, startHour: 8, endHour: 17 },
+        { dayOfWeek: 3, startHour: 8, endHour: 17 },
+        { dayOfWeek: 4, startHour: 8, endHour: 17 },
+        { dayOfWeek: 5, startHour: 8, endHour: 17 },
+
       ],
       maintenanceWindows: [
         { startDate: "2025-11-12T10:00:00Z", endDate: "2025-11-12T11:00:00Z", reason: "Planned maintenance" },
@@ -28,6 +32,9 @@ export const workCenters: IWorkCenter[] = [
       shifts: [
         { dayOfWeek: 1, startHour: 7, endHour: 11 },
         { dayOfWeek: 2, startHour: 14, endHour: 18 },
+        { dayOfWeek: 3, startHour: 8, endHour: 17 },
+        { dayOfWeek: 4, startHour: 8, endHour: 16 },
+        { dayOfWeek: 5, startHour: 8, endHour: 17 },
       ],
       maintenanceWindows: [],
     },
@@ -532,6 +539,23 @@ export const scenarioCircularDependency: IWorkOrder[] = [
       durationMinutes: 120,
       isMaintenance: false,
       dependsOnWorkOrderIds: ["WO12-1"],
+    },
+  },
+];
+
+export const scenarioLongWeekend: IWorkOrder[] = [
+  {
+    docId: "WO100",
+    docType: "workOrder",
+    data: {
+      workCenterId: "WC1",
+      manufacturingOrderId: "MO1",
+      workOrderNumber: "WO100-1",
+      startDate: "2025-11-14T08:00:00Z", // Friday 8 AM
+      endDate: "2025-11-14T16:00:00Z", // initially same day (will change)
+      durationMinutes: 15 * 60, // 15 hours
+      dependsOnWorkOrderIds: [],
+      isMaintenance: false,
     },
   },
 ];

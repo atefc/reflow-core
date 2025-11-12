@@ -6,8 +6,16 @@ import {
   IWorkOrder,
 } from "./types";
 import _ from "lodash";
-import { calculateEndDateWithShifts, diffInMinutes, toUTC } from "./../utils/date-utils";
-import { getOverlappingMaintenanceWindows, isInConflict, sortWorkOrdersBasedOnDependencies } from "./constraint-checker";
+import {
+  calculateEndDateWithShifts,
+  diffInMinutes,
+  toUTC,
+} from "./../utils/date-utils";
+import {
+  getOverlappingMaintenanceWindows,
+  isInConflict,
+  sortWorkOrdersBasedOnDependencies,
+} from "./constraint-checker";
 
 export class ReflowService {
   constructor() {}
@@ -49,16 +57,26 @@ export class ReflowService {
       );
       let lastEndDate: DateTime | null = null;
 
+      // @upgrade
+      let workerDelays = 0;
       for (const workOrder of sortedWorkersInCenter) {
-        let startDate = DateTime.fromISO(workOrder.data.startDate).toUTC();
+        const originalStartDate = toUTC(DateTime.fromISO(workOrder.data.startDate));
+        const originalEndDate = toUTC(DateTime.fromISO(workOrder.data.endDate));
 
-        if(workOrder.data.isMaintenance) {
-            continue;
+        let startDate = toUTC(DateTime.fromISO(workOrder.data.startDate));
+
+        if (workOrder.data.isMaintenance) {
+          continue;
         }
 
         // Check conflict
         if (isInConflict(startDate, lastEndDate)) {
           startDate = lastEndDate!;
+          explanations.push(
+            `Work Order ${
+              workOrder.docId
+            } start date adjusted to ${startDate.toISO()} due to conflict in Work Center ${workCenterId}.`
+          );
         }
 
         // Calculate end date based on shifts
@@ -67,11 +85,23 @@ export class ReflowService {
           workOrder.data.durationMinutes,
           workCenter.data.shifts
         );
+        if (
+          endDate.toMillis() !==
+          toUTC(DateTime.fromISO(workOrder.data.endDate)).toMillis()
+        ) {
+          explanations.push(
+            `Work Order ${workOrder.docId} end date adjusted from ${
+              workOrder.data.endDate
+            } to ${endDate.toISO()} based on shifts in Work Center ${workCenterId}.`
+          );
+          workerDelays += diffInMinutes(
+            toUTC(DateTime.fromISO(workOrder.data.endDate)),
+            endDate
+          );
+        }
 
         // Check maintenance window
-        if (
-          workCenter.data.maintenanceWindows.length
-        ) {
+        if (workCenter.data.maintenanceWindows.length) {
           let isRecalculateNeeded = true;
 
           while (isRecalculateNeeded) {
@@ -82,20 +112,40 @@ export class ReflowService {
               workCenter
             );
             for (const maintenanceWindow of maintenanceWindows) {
-              const maintenanceWindowStart = toUTC(DateTime.fromISO(maintenanceWindow.startDate));
-              const maintenanceWindowEnd = toUTC(DateTime.fromISO(maintenanceWindow.endDate));
+              const maintenanceWindowStart = toUTC(
+                DateTime.fromISO(maintenanceWindow.startDate)
+              );
+              const maintenanceWindowEnd = toUTC(
+                DateTime.fromISO(maintenanceWindow.endDate)
+              );
 
               // If work order overlaps maintenance window
-              if (startDate < maintenanceWindowEnd && endDate > maintenanceWindowStart) {
+              if (
+                startDate < maintenanceWindowEnd &&
+                endDate > maintenanceWindowStart
+              ) {
                 // Available minutes before maintenance window
-                const minutesBeforeMW = diffInMinutes(startDate, maintenanceWindowStart);
+                const minutesBeforeMW = diffInMinutes(
+                  startDate,
+                  maintenanceWindowStart
+                );
                 // If there’s any work done before MW, reduce remaining minutes
                 let remainingMinutes =
-                  workOrder.data.durationMinutes -
-                  (workOrder.data.durationMinutes - minutesBeforeMW);
+                  workOrder.data.durationMinutes - minutesBeforeMW;
 
                 // Resume work after maintenance
                 startDate = maintenanceWindowEnd;
+                explanations.push(
+                  `Work Order ${
+                    workOrder.docId
+                  } delayed due to maintenance window from ${toUTC(
+                    DateTime.fromISO(workOrder.data.startDate).plus({
+                      minutes: minutesBeforeMW,
+                    })
+                  )} to ${
+                    maintenanceWindow.endDate
+                  } in Work Center ${workCenterId}.`
+                );
 
                 // Recalculate end date based on shifts after maintenance
                 endDate = calculateEndDateWithShifts(
@@ -103,6 +153,20 @@ export class ReflowService {
                   remainingMinutes,
                   workCenter.data.shifts
                 );
+                workerDelays += diffInMinutes(
+                  toUTC(DateTime.fromISO(workOrder.data.endDate)),
+                  endDate
+                );
+                if (
+                  endDate.toMillis() !==
+                  toUTC(DateTime.fromISO(workOrder.data.endDate)).toMillis()
+                ) {
+                  explanations.push(
+                    `Work Order ${workOrder.docId} end date adjusted from ${
+                      workOrder.data.endDate
+                    } to ${endDate.toISO()} after maintenance in Work Center ${workCenterId}.`
+                  );
+                }
 
                 isRecalculateNeeded = true; // recheck against all maintenance windows
               }
@@ -111,17 +175,15 @@ export class ReflowService {
         }
 
         // Record changes if start or end date changed
-        const oldStart = workOrder.data.startDate;
-        const oldEnd = workOrder.data.endDate;
 
-        if (oldStart !== startDate.toISO() || oldEnd !== endDate.toISO()) {
+        if (originalStartDate !== startDate || originalEndDate !== endDate) {
           changes.push({
             workOrderId: workOrder.docId,
-            oldStart,
-            oldEnd,
+            oldStart: originalStartDate,
+            oldEnd: originalEndDate,
             newStart: startDate.toISO(),
             newEnd: endDate.toISO(),
-            delayMinutes: diffInMinutes(toUTC(DateTime.fromISO(oldStart)), startDate),
+            delayMinutes: workerDelays,
           });
 
           const isoStartDate = startDate.toISO();
@@ -130,13 +192,14 @@ export class ReflowService {
           if (isoEndDate) workOrder.data.endDate = isoEndDate;
         }
 
-        lastEndDate = endDate;
+                lastEndDate = endDate;
       }
     }
 
     result.changes = changes;
 
     result.updatedWorkOrders = sortedWorkOrders;
+    result.explanation = explanations;
 
     return result;
   }
