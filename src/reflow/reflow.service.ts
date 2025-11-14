@@ -1,11 +1,11 @@
 import { DateTime } from "luxon";
+import _ from "lodash";
 import {
   IManufacturingOrder,
   IReflowResult,
   IWorkCenter,
   IWorkOrder,
 } from "./types";
-import _ from "lodash";
 import {
   calculateEndDateWithShifts,
   diffInMinutes,
@@ -32,76 +32,78 @@ export class ReflowService {
       explanation: [],
     };
 
-    // Group workers by work center
-    const groupedWorkers = _.groupBy(
-      sortedWorkOrders,
-      (wo: IWorkOrder) => wo.data.workCenterId
-    );
-    const changes = [];
-    const explanations = [];
+    const changes: Array<any> = [];
+    const explanations: string[] = [];
 
-    // Check conflicts per work center, adjust start and end dates if needed
-    for (const [workCenterId, workersInCenter] of Object.entries(
-      groupedWorkers
-    )) {
-      const workCenter = workCenters.find((wc) => wc.docId === workCenterId);
+    // Last end date per work center to detect conflicts in the same work center
+    const lastEndPerWorkCenter: Record<string, DateTime | null> = {};
+
+    // Track updated end date per work order that can be used by children
+    const updatedEndPerWorkOrder = new Map<string, DateTime>();
+
+    const workCentersMap = this.getWorkCentersMap(workCenters);
+
+    // Process parents then children
+    for (const workOrder of sortedWorkOrders) {
+      let workerDelays = 0;
+      const workCenterId = workOrder.data.workCenterId;
+      const workCenter = workCentersMap.get(workCenterId);
       if (!workCenter) {
-        throw new Error(`Work Center ${workCenterId} not found`);
+        throw new Error(
+          `Work Center ${workCenterId} not found for ${workOrder.docId}`
+        );
       }
 
-      // Sort workers by start date
-      const sortedWorkersInCenter = workersInCenter.sort(
-        (a, b) =>
-          new Date(a.data.startDate).getTime() -
-          new Date(b.data.startDate).getTime()
-      );
-      let lastEndDate: DateTime | null = null;
+      if (workOrder.data.isMaintenance) {
+        const mEnd = toUTC(DateTime.fromISO(workOrder.data.endDate));
+        lastEndPerWorkCenter[workCenterId] = mEnd;
+        updatedEndPerWorkOrder.set(workOrder.docId, mEnd);
+        continue;
+      }
 
-      // @upgrade
-      for (const workOrder of sortedWorkersInCenter) {
-        let workerDelays = 0;
-        const originalStartDate = toUTC(DateTime.fromISO(workOrder.data.startDate));
-        const originalEndDate = toUTC(DateTime.fromISO(workOrder.data.endDate));
+      // Original timestamps
+      const originalStart = toUTC(DateTime.fromISO(workOrder.data.startDate));
+      const originalEnd = toUTC(DateTime.fromISO(workOrder.data.endDate));
 
-        let startDate = toUTC(DateTime.fromISO(workOrder.data.startDate));
+      // Update earliest start date allowed by dependencies
+      let earliestStart = originalStart;
 
-        if (workOrder.data.isMaintenance) {
-          continue;
+      if (workOrder.data.dependsOnWorkOrderIds?.length) {
+        for (const depId of workOrder.data.dependsOnWorkOrderIds) {
+          const parentEnd = updatedEndPerWorkOrder.get(depId);
+          // Update earliest start if parent ends later
+          if (parentEnd && isInConflict(earliestStart, parentEnd)) {
+            earliestStart = parentEnd;
+            explanations.push(
+              `Work Order ${
+                workOrder.docId
+              } waits for dependency ${depId} finishing at ${parentEnd.toISO()}.`
+            );
+          }
         }
+      }
 
-        // Check conflict
-        if (isInConflict(startDate, lastEndDate)) {
-          startDate = lastEndDate!;
-          explanations.push(
-            `Work Order ${
-              workOrder.docId
-            } start date adjusted to ${startDate.toISO()} due to conflict in Work Center ${workCenterId}.`
-          );
-        }
-
-        // Calculate end date based on shifts
-        let endDate = calculateEndDateWithShifts(
-          startDate,
-          workOrder.data.durationMinutes,
-          workCenter.data.shifts
+      // Check conflicts in the same work center
+      const workCenterLastEnd = lastEndPerWorkCenter[workCenterId] ?? null;
+      if (isInConflict(earliestStart, workCenterLastEnd)) {
+        explanations.push(
+          `Work Order ${
+            workOrder.docId
+          } shifted to avoid intra work center conflict in ${workCenterId}. Was ${earliestStart.toISO()}, now ${workCenterLastEnd!!.toISO()}.`
         );
-        if (
-          endDate.toMillis() !==
-          toUTC(DateTime.fromISO(workOrder.data.endDate)).toMillis()
-        ) {
-          explanations.push(
-            `Work Order ${workOrder.docId} end date adjusted from ${
-              workOrder.data.endDate
-            } to ${endDate.toISO()} based on shifts in Work Center ${workCenterId}.`
-          );
-          workerDelays += diffInMinutes(
-            toUTC(DateTime.fromISO(workOrder.data.endDate)),
-            endDate
-          );
-        }
+        earliestStart = workCenterLastEnd!!;
+      }
 
-        // Check maintenance window
-        if (workCenter.data.maintenanceWindows.length) {
+      // Calculate end date with shifts and adjust for maintenance windows
+      let startDate = earliestStart;
+      let endDate = calculateEndDateWithShifts(
+        startDate,
+        workOrder.data.durationMinutes,
+        workCenter.data.shifts
+      );
+
+      // Check maintenance window
+       if (workCenter.data.maintenanceWindows.length) {
           let isRecalculateNeeded = true;
 
           while (isRecalculateNeeded) {
@@ -153,10 +155,10 @@ export class ReflowService {
                   remainingMinutes,
                   workCenter.data.shifts
                 );
-                workerDelays += diffInMinutes(
-                  toUTC(DateTime.fromISO(workOrder.data.endDate)),
-                  endDate
-                );
+                // workerDelays += diffInMinutes(
+                //   toUTC(DateTime.fromISO(workOrder.data.endDate)),
+                //   endDate
+                // );
                 if (
                   endDate.toMillis() !==
                   toUTC(DateTime.fromISO(workOrder.data.endDate)).toMillis()
@@ -174,39 +176,55 @@ export class ReflowService {
           }
         }
 
-        // Record changes if start or end date changed
+      // Record changes if different from original dates
+      const isoNewStart = startDate.toISO();
+      const isoNewEnd = endDate.toISO();
 
-        if (originalStartDate !== startDate || originalEndDate !== endDate) {
-          changes.push({
-            workOrderId: workOrder.docId,
-            oldStart: originalStartDate,
-            oldEnd: originalEndDate,
-            newStart: startDate.toISO(),
-            newEnd: endDate.toISO(),
-            delayMinutes: workerDelays,
-          });
+      const startChanged = originalStart.toMillis() !== startDate.toMillis();
+      const endChanged = originalEnd.toMillis() !== endDate.toMillis();
 
-          const isoStartDate = startDate.toISO();
-          const isoEndDate = endDate.toISO();
-          if (isoStartDate) workOrder.data.startDate = isoStartDate;
-          if (isoEndDate) workOrder.data.endDate = isoEndDate;
+      if (startChanged || endChanged) {
+        const delayMinutes = diffInMinutes(originalEnd, endDate);
+        changes.push({
+          workOrderId: workOrder.docId,
+          oldStart: originalStart.toISO(),
+          oldEnd: originalEnd.toISO(),
+          newStart: isoNewStart,
+          newEnd: isoNewEnd,
+          delayMinutes,
+        });
+
+        explanations.push(
+          `Work Order ${
+            workOrder.docId
+          } adjusted: ${originalStart.toISO()}-${originalEnd.toISO()} -> ${isoNewStart}-${isoNewEnd} (delay: ${delayMinutes} mins)`
+        );
+
+        // Update workers dates
+        if (isoNewStart) {
+          workOrder.data.startDate = isoNewStart;
         }
-
-        lastEndDate = endDate;
+        if (isoNewEnd) {
+          workOrder.data.endDate = isoNewEnd;
+        }
       }
+
+      lastEndPerWorkCenter[workCenterId] = endDate;
+      updatedEndPerWorkOrder.set(workOrder.docId, endDate);
     }
 
     result.changes = changes;
-
     result.updatedWorkOrders = sortedWorkOrders;
     result.explanation = explanations;
 
     return result;
   }
 
-  private buildWorkOrderMap(workOrders: IWorkOrder[]): Map<string, IWorkOrder> {
-    const map = new Map<string, IWorkOrder>();
-    workOrders.forEach((wo) => map.set(wo.docId, wo));
-    return map;
+  getWorkCentersMap(workCenters: IWorkCenter[]): Map<string, IWorkCenter> {
+    const workCentersMap: Map<string, IWorkCenter> = workCenters.reduce(
+      (map, wc) => map.set(wc.docId, wc),
+      new Map<string, IWorkCenter>()
+    );
+    return workCentersMap;
   }
 }
