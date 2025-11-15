@@ -31,7 +31,7 @@ export const workCenters: IWorkCenter[] = [
       name: "Extrusion Line 2",
       shifts: [
         { dayOfWeek: 1, startHour: 7, endHour: 11 },
-        { dayOfWeek: 2, startHour: 14, endHour: 18 },
+        { dayOfWeek: 2, startHour: 8, endHour: 18 },
         { dayOfWeek: 3, startHour: 8, endHour: 17 },
         { dayOfWeek: 4, startHour: 8, endHour: 16 },
         { dayOfWeek: 5, startHour: 8, endHour: 17 },

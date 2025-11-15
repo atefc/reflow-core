@@ -20,6 +20,13 @@ import {
 export class ReflowService {
   constructor() {}
 
+  /**
+   * Reflow work orders to resolve conflicts, respect dependencies, and account for maintenance windows.
+   * @param workOrders 
+   * @param workCenters 
+   * @param manufacturingOrders 
+   * @returns IReflowResult
+   */
   reflow(
     workOrders: IWorkOrder[],
     workCenters: IWorkCenter[],
@@ -36,10 +43,10 @@ export class ReflowService {
     const explanations: string[] = [];
 
     // Last end date per work center to detect conflicts in the same work center
-    const lastEndPerWorkCenter: Record<string, DateTime | null> = {};
+    const lastEndDatePerWorkCenter: Map<string, DateTime | null> = new Map();
 
     // Track updated end date per work order that can be used by children
-    const updatedEndPerWorkOrder = new Map<string, DateTime>();
+    const endDatePerWorkOrder = new Map<string, DateTime>();
 
     const workCentersMap = this.getWorkCentersMap(workCenters);
 
@@ -56,8 +63,8 @@ export class ReflowService {
 
       if (workOrder.data.isMaintenance) {
         const mEnd = toUTC(DateTime.fromISO(workOrder.data.endDate));
-        lastEndPerWorkCenter[workCenterId] = mEnd;
-        updatedEndPerWorkOrder.set(workOrder.docId, mEnd);
+        lastEndDatePerWorkCenter.set(workCenterId, mEnd);
+        endDatePerWorkOrder.set(workOrder.docId, mEnd);
         continue;
       }
 
@@ -68,9 +75,10 @@ export class ReflowService {
       // Update earliest start date allowed by dependencies
       let earliestStart = originalStart;
 
+      // Parent workers are done first, so we're sure their end dates are updated
       if (workOrder.data.dependsOnWorkOrderIds?.length) {
         for (const depId of workOrder.data.dependsOnWorkOrderIds) {
-          const parentEnd = updatedEndPerWorkOrder.get(depId);
+          const parentEnd = endDatePerWorkOrder.get(depId);
           // Update earliest start if parent ends later
           if (parentEnd && isInConflict(earliestStart, parentEnd)) {
             earliestStart = parentEnd;
@@ -84,7 +92,7 @@ export class ReflowService {
       }
 
       // Check conflicts in the same work center
-      const workCenterLastEnd = lastEndPerWorkCenter[workCenterId] ?? null;
+      const workCenterLastEnd = lastEndDatePerWorkCenter.get(workCenterId) ?? null;
       if (isInConflict(earliestStart, workCenterLastEnd)) {
         explanations.push(
           `Work Order ${
@@ -209,8 +217,8 @@ export class ReflowService {
         }
       }
 
-      lastEndPerWorkCenter[workCenterId] = endDate;
-      updatedEndPerWorkOrder.set(workOrder.docId, endDate);
+      lastEndDatePerWorkCenter.set(workCenterId, endDate);
+      endDatePerWorkOrder.set(workOrder.docId, endDate);
     }
 
     result.changes = changes;

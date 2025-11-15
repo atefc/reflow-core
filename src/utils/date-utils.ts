@@ -55,22 +55,22 @@ export const calculateEndDateWithShifts = (
  * Find the next shift for a given date.
  */
 export const findNextShift = (
-  current: DateTime,
+  startDate: DateTime,
   shifts: IShift[]
 ): { shiftStart: DateTime; shiftEnd: DateTime } | null => {
   // Map shifts to concrete start/end today
   const todayShifts = shifts
-    .filter(s => s.dayOfWeek === current.weekday % 7) // convert from 1-7(luxon weekday) to 0-6
+    .filter(s => s.dayOfWeek === startDate.weekday % 7) // convert from 1-7(luxon weekday) to 0-6
     .map(s => ({
-      shiftStart: current.set({ hour: s.startHour, minute: 0, second: 0, millisecond: 0 }),
-      shiftEnd: current.set({ hour: s.endHour, minute: 0, second: 0, millisecond: 0 }),
+      shiftStart: startDate.set({ hour: s.startHour, minute: 0, second: 0, millisecond: 0 }),
+      shiftEnd: startDate.set({ hour: s.endHour, minute: 0, second: 0, millisecond: 0 }),
     }))
     .sort((a, b) => a.shiftStart.toMillis() - b.shiftStart.toMillis());
 
   // Return first shift that hasn't ended yet
-  const shift = todayShifts.find(s => current < s.shiftEnd);
+  const shift = todayShifts.find(s => startDate < s.shiftEnd);
   if (shift) {
-    const shiftStart = current < shift.shiftStart ? shift.shiftStart : current;
+    const shiftStart = startDate < shift.shiftStart ? shift.shiftStart : startDate;
     return { shiftStart, shiftEnd: shift.shiftEnd };
   }
 
